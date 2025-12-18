@@ -2,6 +2,7 @@
 #include <MCUFRIEND_kbv.h>
 #include "questions.h"
 #include "colors.h"
+#include "animations.h"
 
 MCUFRIEND_kbv tft;
 
@@ -12,12 +13,6 @@ MCUFRIEND_kbv tft;
 #define PIN_RGB_R     8
 #define PIN_RGB_G     9
 #define PIN_RGB_B     10
-
-// eye config
-int eyeRadius = 50;
-int leftEyeX = 140;
-int rightEyeX = 340;
-int eyeY = 160;
 
 // state var
 enum RobotState { STATE_HAPPY, STATE_SAD, STATE_GAME };
@@ -44,7 +39,7 @@ void setup() {
   tft.setRotation(3); 
   tft.fillScreen(BLACK); 
 
-  pinMode(PIN_BTN1, INPUT);
+  pinMode(PIN_BTN1, INPUT); 
   pinMode(PIN_BTN2, INPUT);
   pinMode(PIN_VIBRO, OUTPUT);
   pinMode(PIN_BUZZER, OUTPUT);
@@ -83,9 +78,25 @@ void loop() {
       
       // blink logic
       if (currentMillis - lastBlinkTime > blinkInterval) {
-        blinkEyes();
+        blinkEyes(0);
         lastBlinkTime = currentMillis;
         blinkInterval = random(2000, 4000);
+      }
+
+      // trigger joy eyes logic
+      if (btn1 || btn2) {
+         drawEyes(2); 
+         
+         // also add vibration bcs why not
+         digitalWrite(PIN_VIBRO, HIGH);
+         delay(200); 
+         digitalWrite(PIN_VIBRO, LOW);
+         delay(1500); 
+         
+         // reset the timer
+         lastInteractionTime = millis();
+         currentMillis = lastInteractionTime;
+         previousState = STATE_GAME; 
       }
 
       // check for timeout
@@ -149,10 +160,18 @@ void handleAnswer(int userChoice) {
     // check win cond
     if (streakCounter >= targetStreak) {
       tft.fillScreen(GREEN);
+
       tft.setCursor(100, 140);
       tft.setTextColor(BLACK);
       tft.setTextSize(4);
       tft.print("Good Job!");
+
+      // win music
+      for(int i=0; i<3; i++) {
+          digitalWrite(PIN_BUZZER, LOW); delay(100);
+          digitalWrite(PIN_BUZZER, HIGH); delay(100);
+      }
+
       delay(2000);
       currentState = STATE_HAPPY; // return state to happy
       return;
@@ -163,12 +182,16 @@ void handleAnswer(int userChoice) {
     streakCounter = 0;
     
     // flash LED red and sound buzzer
-    analogWrite(PIN_RGB_R, 0); analogWrite(PIN_RGB_G, 255); analogWrite(PIN_RGB_B, 255);
+    analogWrite(PIN_RGB_R, 0); 
+    analogWrite(PIN_RGB_G, 255); 
+    analogWrite(PIN_RGB_B, 255);
     digitalWrite(PIN_BUZZER, LOW);
     tft.fillRect(0, 0, 480, 50, RED); // flash header red
     delay(500);
     digitalWrite(PIN_BUZZER, HIGH); 
-    analogWrite(PIN_RGB_R, 0); analogWrite(PIN_RGB_G, 255); analogWrite(PIN_RGB_B, 0);
+    analogWrite(PIN_RGB_R, 0); 
+    analogWrite(PIN_RGB_G, 255); 
+    analogWrite(PIN_RGB_B, 0);
   }
   waitingForAnswer = false; 
 }
@@ -186,22 +209,22 @@ void drawGameScreen() {
   tft.print("/5");
 
   // question
-  tft.setCursor(60, 120);
+  tft.setCursor(120, 120);
   tft.setTextColor(WHITE);
   tft.setTextSize(4);
   tft.print(questionBank[currentQuestionIndex].question);
   
   // left option (button 1)
-  tft.fillRect(20, 220, 200, 80, 0x3333);
-  tft.setCursor(80, 245);
+  tft.fillRect(20, 200, 200, 80, 0x3333);
+  tft.setCursor(90, 225);
   tft.print(questionBank[currentQuestionIndex].optionA);
   tft.setCursor(30, 290);
   tft.setTextSize(2);
   tft.print("(Btn 1)");
 
   // right option (button 2)
-  tft.fillRect(260, 220, 200, 80, 0x3333);
-  tft.setCursor(320, 245);
+  tft.fillRect(260, 200, 200, 80, 0x3333);
+  tft.setCursor(340, 225);
   tft.setTextSize(4);
   tft.print(questionBank[currentQuestionIndex].optionB);
   tft.setCursor(270, 290);
@@ -209,38 +232,22 @@ void drawGameScreen() {
   tft.print("(Btn 2)");
 }
 
-// 0 = happy, 1 = sad
-void drawEyes(int mood) {
-  // happy eyes
-  tft.fillCircle(leftEyeX, eyeY, eyeRadius, WHITE);
-  tft.fillCircle(rightEyeX, eyeY, eyeRadius, WHITE);
-  tft.fillCircle(leftEyeX, eyeY, 20, BLUE);
-  tft.fillCircle(rightEyeX, eyeY, 20, BLUE);
-
-  // sad eyes
-  if (mood == 1) { 
-    tft.fillRect(leftEyeX - eyeRadius, eyeY - eyeRadius, eyeRadius*2, 40, BLACK);
-    tft.fillRect(rightEyeX - eyeRadius, eyeY - eyeRadius, eyeRadius*2, 40, BLACK);
-  }
-}
-
-void blinkEyes() {
-  tft.fillCircle(leftEyeX, eyeY, eyeRadius, BLACK);
-  tft.fillCircle(rightEyeX, eyeY, eyeRadius, BLACK);
-  delay(100);
-  drawEyes(currentState == STATE_HAPPY ? 0 : 1);
-}
-
 // LED is common anode so 0-255 is flipped
 void setLED(int state) {
   if (state == 0) {
     // 0 happy - green
-    analogWrite(PIN_RGB_R, 255); analogWrite(PIN_RGB_G, 0); analogWrite(PIN_RGB_B, 255);
+    analogWrite(PIN_RGB_R, 255); 
+    analogWrite(PIN_RGB_G, 0); 
+    analogWrite(PIN_RGB_B, 255);
   } else if (state == 1) {
     // 1 sad - blue
-    analogWrite(PIN_RGB_R, 255); analogWrite(PIN_RGB_G, 255); analogWrite(PIN_RGB_B, 0);
+    analogWrite(PIN_RGB_R, 255); 
+    analogWrite(PIN_RGB_G, 255); 
+    analogWrite(PIN_RGB_B, 0);
   } else {
     // game - purple
-    analogWrite(PIN_RGB_R, 0); analogWrite(PIN_RGB_G, 255); analogWrite(PIN_RGB_B, 0);
+    analogWrite(PIN_RGB_R, 0); 
+    analogWrite(PIN_RGB_G, 255); 
+    analogWrite(PIN_RGB_B, 0);
   }
 }
